@@ -2,7 +2,7 @@
 
 Private, fully on-device voice-to-text iPhone app: SwiftUI + Apple SpeechAnalyzer/SpeechTranscriber for live dictation, optional transcript cleanup via Foundation Models (Apple Intelligence devices), SwiftData history. Zero external dependencies, zero networking — audio and text never leave the device.
 
-- **Status:** v1 feature-complete per README. Mac run (Designed for iPhone) now **builds and signs successfully** (verified 2026-08-07, `BUILD SUCCEEDED`) with the free Personal Team `LY96XV88YC` (`bv.vishwas46@gmail.com`, cert `8F624W3LXK`) — `DEVELOPMENT_TEAM` added to the pbxproj, **uncommitted** along with this file. The signed Mac app has *not been launched/live-tested yet* — that's the next step. iPhone on-device verification (mic dot, airplane mode) still pending. No test target.
+- **Status:** v1 feature-complete per README; now **public open source (MIT)** at `github.com/vishwas46/dikttavo` — transferred out of tavlo-tech to the personal account 2026-08-07, with README badges + screenshot, repo topics, and a social-preview card in `docs/` (upload via repo Settings ▸ Social preview still pending). Mac run (Designed for iPhone) **builds and signs** (verified 2026-08-07, `BUILD SUCCEEDED`) with the free Personal Team `LY96XV88YC` (`bv.vishwas46@gmail.com`) but has *not been launched/live-tested yet*. iPhone on-device verification (mic dot, airplane mode) still pending. No test target. Everything committed and pushed.
 - **Last updated:** 2026-08-07
 
 ## SSOT convention
@@ -70,6 +70,6 @@ Free app → publish as **Individual** under `bv.vishwas46@gmail.com` (currently
 
 ## Next 3 steps
 
-1. **Launch + live-test the Mac build** (already built & signed): run the Mac build command above, `open` the app, grant mic + speech prompts, then record → live transcript → AI cleanup → history. Verify the macOS menu-bar mic indicator turns off within ~1s of stop. Copy the .app to /Applications for daily use.
+1. **Launch + live-test the Mac build** (already built & signed): run the Mac build command above, `open` the app, grant mic + speech prompts, then record → live transcript → AI cleanup → history. Verify the macOS menu-bar mic indicator turns off within ~1s of stop. Copy the .app to /Applications for daily use. While testing, screen-record a 10–15s dictation for a README demo GIF — the single biggest star-driver for app repos.
 2. **Validate on the physical iPhone** — click-by-click script exists from the 2026-07-05 session handoff: live dictation, orange mic dot timing, airplane-mode run, first-use model download.
 3. **When ready to ship:** enroll as Individual, then unit tests (`DictationEngine`, `BufferConverter`) + a GitHub Actions build check before the first TestFlight upload.
