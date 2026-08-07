@@ -2,8 +2,8 @@
 
 Private, fully on-device voice-to-text iPhone app: SwiftUI + Apple SpeechAnalyzer/SpeechTranscriber for live dictation, optional transcript cleanup via Foundation Models (Apple Intelligence devices), SwiftData history. Zero external dependencies, zero networking — audio and text never leave the device.
 
-- **Status:** v1 feature-complete per README (permissions → record → transcribe → clean → save all implemented, ~1,000 lines Swift). ⚠️ Git repo is initialized but has **zero commits** — every file is untracked, so there is no history safety net yet.
-- **Last updated:** 2026-07-06
+- **Status:** v1 feature-complete per README. Mac run (Designed for iPhone) now **builds and signs successfully** (verified 2026-08-07, `BUILD SUCCEEDED`) with the free Personal Team `LY96XV88YC` (`bv.vishwas46@gmail.com`, cert `8F624W3LXK`) — `DEVELOPMENT_TEAM` added to the pbxproj, **uncommitted** along with this file. The signed Mac app has *not been launched/live-tested yet* — that's the next step. iPhone on-device verification (mic dot, airplane mode) still pending. No test target.
+- **Last updated:** 2026-08-07
 
 ## SSOT convention
 
@@ -24,6 +24,17 @@ Primary workflow is Xcode: open `Dikttavo.xcodeproj`, scheme `Dikttavo`, pick an
 xcodebuild -project Dikttavo.xcodeproj -scheme Dikttavo \
   -destination 'generic/platform=iOS Simulator' build
 ```
+
+On this Mac, bare `xcodebuild` fails: `xcode-select` points at CommandLineTools, not Xcode.app. Prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, or switch once via `sudo xcode-select -s /Applications/Xcode.app`.
+
+```bash
+# Mac app (Designed for iPhone) — builds signed with the personal team already in the pbxproj:
+xcodebuild -project Dikttavo.xcodeproj -scheme Dikttavo \
+  -destination 'platform=macOS,variant=Designed for iPhone' -allowProvisioningUpdates build
+# Product lands in DerivedData .../Build/Products/Debug-iphoneos/Dikttavo.app — launch with `open`.
+```
+
+The iOS **Simulator cannot run live dictation** (SpeechTranscriber reports 0 locales; the app detects this and shows a message). Live testing = Mac run or a real iPhone.
 
 ## Verify & debug
 
@@ -53,8 +64,12 @@ None. The app is fully on-device: no API keys, no `.env`, no xcconfig secrets, n
 - `DictationRecord.swift` — SwiftData model (raw + cleaned text)
 - `HistoryView.swift` / `SettingsView.swift` — history list/detail/delete; language + auto-cleanup + save-history toggles
 
-## Next 3 steps (nothing documented — suggested)
+## App Store plan (decided 2026-08-07)
 
-1. **Make the initial git commit** — the repo has zero commits; commit the working v1 before touching anything else (author: Vishwas's git identity).
-2. **Add a unit-test target** — `DictationEngine`'s state machine and `BufferConverter` are the testable seams; currently the only verification is a manual run.
-3. **Validate on a physical iPhone** — set up signing, test real-mic dictation quality and Foundation Models cleanup on Apple Intelligence hardware (simulator behavior differs for speech + FM availability).
+Free app → publish as **Individual** under `bv.vishwas46@gmail.com` (currently free tier — needs the $99/yr Apple Developer Program enrollment before any upload; fastest via the Apple Developer app on iPhone). Declare **non-trader** in App Store Connect (free non-commercial app → no personal contact published in EU). NOT under the forming GmbH — App Transfer can move it to the org account later if wanted. Mac App Store comes free via "Designed for iPhone" once the iOS app ships. Android would be a full rewrite — deferred until iOS proves demand.
+
+## Next 3 steps
+
+1. **Launch + live-test the Mac build** (already built & signed): run the Mac build command above, `open` the app, grant mic + speech prompts, then record → live transcript → AI cleanup → history. Verify the macOS menu-bar mic indicator turns off within ~1s of stop. Copy the .app to /Applications for daily use.
+2. **Validate on the physical iPhone** — click-by-click script exists from the 2026-07-05 session handoff: live dictation, orange mic dot timing, airplane-mode run, first-use model download.
+3. **When ready to ship:** enroll as Individual, then unit tests (`DictationEngine`, `BufferConverter`) + a GitHub Actions build check before the first TestFlight upload.
