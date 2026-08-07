@@ -2,7 +2,7 @@
 
 Private, fully on-device voice-to-text iPhone app: SwiftUI + Apple SpeechAnalyzer/SpeechTranscriber for live dictation, optional transcript cleanup via Foundation Models (Apple Intelligence devices), SwiftData history. Zero external dependencies, zero networking — audio and text never leave the device.
 
-- **Status:** v1 feature-complete per README; now **public open source (MIT)** at `github.com/vishwas46/dikttavo` — transferred out of tavlo-tech to the personal account 2026-08-07, with README badges + screenshot, repo topics, and a social-preview card in `docs/` (upload via repo Settings ▸ Social preview still pending). Mac run (Designed for iPhone) **builds and signs** (verified 2026-08-07, `BUILD SUCCEEDED`) with the free Personal Team `LY96XV88YC` (`bv.vishwas46@gmail.com`) but has *not been launched/live-tested yet*. iPhone on-device verification (mic dot, airplane mode) still pending. No test target. Everything committed and pushed.
+- **Status:** v1 feature-complete per README; **public open source (MIT)** at `github.com/vishwas46/dikttavo` (README badges + screenshot, topics, social-preview card uploaded, repo pinned on profile). Local checkout moved to `~/Documents/workspace/private/dikttavo` 2026-08-07; Mac (Designed for iPhone) build re-verified from the new path (`BUILD SUCCEEDED`, free Personal Team `LY96XV88YC`, `bv.vishwas46@gmail.com`). The signed Mac app has *not been launched/live-tested yet*. iPhone on-device verification (mic dot, airplane mode) still pending. No test target. Everything committed and pushed.
 - **Last updated:** 2026-08-07
 
 ## SSOT convention
