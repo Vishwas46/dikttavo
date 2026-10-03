@@ -2,6 +2,10 @@ import SwiftData
 import SwiftUI
 
 struct HistoryView: View {
+    /// Set in the iPad/Mac sidebar, where rows select into it instead of
+    /// pushing a detail screen.
+    var selection: Binding<DictationRecord?>? = nil
+
     @Environment(\.modelContext) private var context
     @Query(sort: \DictationRecord.createdAt, order: .reverse) private var records: [DictationRecord]
     @State private var confirmClearAll = false
@@ -12,28 +16,20 @@ struct HistoryView: View {
                 ContentUnavailableView(
                     "No dictations yet",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("Finished dictations appear here. Everything stays on this iPhone.")
+                    description: Text("Finished dictations appear here. Everything stays on this device.")
                 )
             } else {
-                List {
+                List(selection: selection) {
                     ForEach(records) { record in
-                        NavigationLink {
-                            HistoryDetailView(record: record)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(record.displayText)
-                                    .font(.body)
-                                    .lineLimit(2)
-                                Text(record.createdAt, format: .dateTime.day().month().year().hour().minute())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        row(for: record)
+                            .contextMenu {
+                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                    delete([record])
+                                }
                             }
-                        }
                     }
                     .onDelete { offsets in
-                        for index in offsets {
-                            context.delete(records[index])
-                        }
+                        delete(offsets.map { records[$0] })
                     }
                 }
             }
@@ -48,11 +44,34 @@ struct HistoryView: View {
         }
         .confirmationDialog("Delete all dictations?", isPresented: $confirmClearAll, titleVisibility: .visible) {
             Button("Delete All", role: .destructive) {
-                for record in records {
-                    context.delete(record)
-                }
+                delete(records)
             }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// In the sidebar the link's value becomes the split view's selection; on
+    /// iPhone it pushes the detail screen.
+    private func row(for record: DictationRecord) -> some View {
+        NavigationLink(value: record) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(record.displayText)
+                    .font(.body)
+                    .lineLimit(2)
+                Text(record.createdAt, format: .dateTime.day().month().year().hour().minute())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func delete(_ doomed: [DictationRecord]) {
+        // Never leave the detail pane showing a deleted record.
+        if let selected = selection?.wrappedValue, doomed.contains(selected) {
+            selection?.wrappedValue = nil
+        }
+        for record in doomed {
+            context.delete(record)
         }
     }
 }
@@ -86,20 +105,20 @@ struct HistoryDetailView: View {
             }
         }
         .navigationTitle(Text(record.createdAt, format: .dateTime.day().month().hour().minute()))
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             Button {
-                UIPasteboard.general.string = shownText
+                Platform.copyToClipboard(shownText)
                 justCopied = true
                 Task {
                     try? await Task.sleep(for: .seconds(1.5))
                     justCopied = false
                 }
             } label: {
-                Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
+                Label(justCopied ? "Copied" : "Copy", systemImage: justCopied ? "checkmark" : "doc.on.doc")
             }
             ShareLink(item: shownText) {
-                Image(systemName: "square.and.arrow.up")
+                Label("Share", systemImage: "square.and.arrow.up")
             }
         }
         .onAppear {

@@ -4,6 +4,7 @@ import Speech
 import SwiftData
 
 /// Drives a dictation session: permissions, recorder, transcriber, and UI state.
+/// The app owns exactly one, shared by all of its windows.
 @MainActor
 @Observable
 final class DictationEngine {
@@ -21,17 +22,20 @@ final class DictationEngine {
     var permissionDenied = false
     private(set) var errorMessage: String?
 
-    /// Set by the view; used to persist finished dictations to local history.
-    var modelContext: ModelContext?
+    /// Where finished dictations are saved (when history is on).
+    private let modelContext: ModelContext
 
     private let recorder = Recorder()
     let transcriber = Transcriber()
     private let cleaner = Cleaner()
 
     var downloadProgress: Progress? { transcriber.downloadProgress }
-    var cleanupAvailable: Bool { cleaner.isAvailable }
+    /// Why AI cleanup can't run right now; nil when it can.
+    var cleanupUnavailableMessage: String? { cleaner.unavailableMessage }
 
-    init() {
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+        #if os(iOS)
         // A phone call or Siri taking the mic ends the dictation cleanly.
         NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
@@ -43,6 +47,7 @@ final class DictationEngine {
                 await self.stopDictation()
             }
         }
+        #endif
     }
 
     func toggleRecording() {
@@ -78,9 +83,17 @@ final class DictationEngine {
             let preferred = storedID.isEmpty ? Locale.current : Locale(identifier: storedID)
             let locale = await Transcriber.resolveLocale(preferring: preferred)
             let intake = try await transcriber.start(locale: locale)
-            try recorder.start { buffer in
-                intake.ingest(buffer)
-            }
+            try recorder.start(
+                onBuffer: { buffer in
+                    intake.ingest(buffer)
+                },
+                onHardwareChange: { [weak self] in
+                    Task { @MainActor in
+                        guard let self, self.state == .listening else { return }
+                        await self.stopDictation()
+                    }
+                }
+            )
             transcript = ""
             cleanedTranscript = nil
             state = .listening
@@ -88,8 +101,11 @@ final class DictationEngine {
             await transcriber.cancel()
             recorder.stop()
             state = .idle
-            errorMessage = (error as? TranscriberError)?.message
-                ?? "Couldn't start dictation. Please try again."
+            errorMessage = switch error {
+            case let error as TranscriberError: error.message
+            case is Recorder.NoMicrophoneError: "No microphone found. Connect one and try again."
+            default: "Couldn't start dictation. Please try again."
+            }
         }
     }
 
@@ -108,9 +124,7 @@ final class DictationEngine {
             }
         }
 
-        if UserDefaults.standard.bool(forKey: "saveHistory"),
-           !transcript.isEmpty,
-           let modelContext {
+        if UserDefaults.standard.bool(forKey: "saveHistory"), !transcript.isEmpty {
             modelContext.insert(DictationRecord(rawText: transcript, cleanedText: cleanedTranscript))
             try? modelContext.save()
         }

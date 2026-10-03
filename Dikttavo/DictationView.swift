@@ -1,16 +1,14 @@
-import SwiftData
 import SwiftUI
 
+/// The dictation pane: live transcript, record button, copy and share.
 struct DictationView: View {
     enum TranscriptMode: String, CaseIterable {
         case cleaned = "Cleaned"
         case raw = "Raw"
     }
 
-    @State private var engine = DictationEngine()
+    @Environment(DictationEngine.self) private var engine
     @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.modelContext) private var modelContext
     @State private var mode: TranscriptMode = .raw
     @State private var justCopied = false
     @State private var pulsing = false
@@ -24,57 +22,14 @@ struct DictationView: View {
                 set: { engine.cleanedTranscript = $0 }
             )
         }
-        return $engine.transcript
+        return Bindable(engine).transcript
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                transcriptArea
-                controls
-            }
-            .navigationTitle("Dikttavo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink {
-                        HistoryView()
-                    } label: {
-                        Image(systemName: "clock.arrow.circlepath")
-                    }
-                    .disabled(engine.state != .idle)
-                    .accessibilityLabel("History")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .disabled(engine.state != .idle)
-                    .accessibilityLabel("Settings")
-                }
-            }
-        }
-        .task {
-            engine.modelContext = modelContext
-            #if DEBUG
-            // Verification hook for environments where dictation can't run (the
-            // simulator): `simctl launch <udid> com.vishwas.Dikttavo -seedHistory`
-            if ProcessInfo.processInfo.arguments.contains("-seedHistory") {
-                modelContext.insert(DictationRecord(
-                    rawText: "um so this is uh a seeded raw transcript with with filler words",
-                    cleanedText: "This is a seeded raw transcript with filler words."
-                ))
-                modelContext.insert(DictationRecord(
-                    rawText: "second seeded dictation used to test persistence across launches",
-                    cleanedText: nil
-                ))
-            }
-            #endif
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            engine.handleScenePhaseChange(toBackground: newPhase == .background)
+        @Bindable var engine = engine
+        VStack(spacing: 0) {
+            transcriptArea
+            controls
         }
         .onChange(of: engine.state) { _, newState in
             if newState != .idle {
@@ -84,12 +39,12 @@ struct DictationView: View {
             }
         }
         .alert("Allow microphone & speech recognition", isPresented: $engine.permissionDenied) {
-            Button("Open Settings") {
-                openURL(URL(string: UIApplication.openSettingsURLString)!)
+            Button("Open \(Platform.settingsAppName)") {
+                openURL(Platform.privacySettingsURL)
             }
             Button("Not Now", role: .cancel) {}
         } message: {
-            Text("Dikttavo needs the microphone and speech recognition to take dictation. Turn both on in Settings — everything stays on your iPhone.")
+            Text("Dikttavo needs the microphone and speech recognition to take dictation. Turn both on in \(Platform.settingsAppName) — everything stays on this device.")
         }
     }
 
@@ -135,7 +90,7 @@ struct DictationView: View {
                     .padding(.horizontal, 12)
                     .overlay(alignment: .topLeading) {
                         if shownText.wrappedValue.isEmpty {
-                            Text("Tap the mic and start speaking")
+                            Text("\(Platform.tapVerb) the mic and start speaking")
                                 .foregroundStyle(.tertiary)
                                 .padding(.top, 8)
                                 .padding(.leading, 17)
@@ -174,12 +129,12 @@ struct DictationView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 } else {
-                    Text("Tap to dictate")
+                    Text("\(Platform.tapVerb) to dictate")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                if !engine.cleanupAvailable {
-                    Text("AI cleanup isn't available on this device — transcripts stay raw.")
+                if let cleanupNote = engine.cleanupUnavailableMessage {
+                    Text(cleanupNote)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
@@ -271,7 +226,7 @@ struct DictationView: View {
 
     private var copyButton: some View {
         Button {
-            UIPasteboard.general.string = shownText.wrappedValue
+            Platform.copyToClipboard(shownText.wrappedValue)
             justCopied = true
             Task {
                 try? await Task.sleep(for: .seconds(1.5))

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  privacy:
+    name: Privacy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/check-privacy.sh
+
+  build:
+    name: Build (iPhone, iPad, Mac)
+    # GitHub's Xcode 27 image (macOS 27). Still labeled "preview" by GitHub,
+    # so jobs can queue for a while.
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode 27.0
+        run: sudo xcode-select -s /Applications/Xcode_27.0.app
+      - name: Build for iPhone and iPad (simulator)
+        run: >
+          xcodebuild -project Dikttavo.xcodeproj -scheme Dikttavo
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Build for Mac
+        run: >
+          xcodebuild -project Dikttavo.xcodeproj -scheme Dikttavo
+          -destination 'generic/platform=macOS'
+          CODE_SIGNING_ALLOWED=NO build

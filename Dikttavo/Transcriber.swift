@@ -18,7 +18,7 @@ enum TranscriberError: Error {
             return "Dictation isn't available for \(name) on this device."
         case .noAudioFormat, .setupTimedOut:
             #if targetEnvironment(simulator)
-            return "Live dictation isn't supported in the iOS Simulator. Run Dikttavo on a real iPhone."
+            return "Live dictation isn't supported in the iOS Simulator. Run Dikttavo on a real iPhone, iPad, or Mac."
             #else
             return "Couldn't start dictation. Please try again."
             #endif
@@ -73,22 +73,33 @@ final class Transcriber {
     private var analyzer: SpeechAnalyzer?
     private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
     private var resultsTask: Task<Void, Never>?
+    private var intake: AudioIntake?
 
-    /// Receives raw microphone buffers on the audio thread and forwards them
-    /// to the analyzer in its preferred format.
-    final class AudioIntake {
-        private let format: AVAudioFormat
+    /// Receives raw microphone buffers on the audio thread and forwards them to
+    /// the analyzer, converted to its format by Apple's AnalyzerInputConverter.
+    final class AudioIntake: @unchecked Sendable {
+        private let converter: AnalyzerInputConverter
         private let continuation: AsyncStream<AnalyzerInput>.Continuation
-        private let converter = BufferConverter()
+        private let lock = NSLock() // ingest (audio thread) vs. flush (main actor)
 
-        init(format: AVAudioFormat, continuation: AsyncStream<AnalyzerInput>.Continuation) {
-            self.format = format
+        init(converter: AnalyzerInputConverter, continuation: AsyncStream<AnalyzerInput>.Continuation) {
+            self.converter = converter
             self.continuation = continuation
         }
 
         func ingest(_ buffer: AVAudioPCMBuffer) {
-            guard let converted = try? converter.convert(buffer, to: format) else { return }
-            continuation.yield(AnalyzerInput(buffer: converted))
+            lock.withLock {
+                guard let inputs = try? converter.convert(buffer, at: nil) else { return }
+                inputs.forEach { continuation.yield($0) }
+            }
+        }
+
+        /// Hands over the audio the converter still holds once recording stops.
+        func flush() {
+            lock.withLock {
+                guard let inputs = try? converter.flush() else { return }
+                inputs.forEach { continuation.yield($0) }
+            }
         }
     }
 
@@ -172,6 +183,7 @@ final class Transcriber {
     /// Ends the audio input, waits for the remaining results to finalize, and
     /// returns the complete transcript.
     func stop() async -> String {
+        intake?.flush()
         inputContinuation?.finish()
         do {
             try await withSetupTimeout { [analyzer] in
@@ -221,19 +233,26 @@ final class Transcriber {
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
         inputContinuation = continuation
 
-        dictationLog.info("startAnalyzer: querying bestAvailableAudioFormat")
-        let format = try await withSetupTimeout {
-            await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module])
-        }
-        guard let format else {
+        dictationLog.info("startAnalyzer: creating input converter")
+        let converter: AnalyzerInputConverter
+        do {
+            converter = try await withSetupTimeout {
+                try await AnalyzerInputConverter.converter(compatibleWith: [module])
+            }
+        } catch let error as TranscriberError {
+            throw error
+        } catch {
+            dictationLog.error("startAnalyzer: no input converter: \(error)")
             throw TranscriberError.noAudioFormat
         }
-        dictationLog.info("startAnalyzer: format \(format), starting analyzer")
+        dictationLog.info("startAnalyzer: starting analyzer")
         try await withSetupTimeout {
             try await analyzer.start(inputSequence: stream)
         }
         dictationLog.info("startAnalyzer: analyzer started")
-        return AudioIntake(format: format, continuation: continuation)
+        let intake = AudioIntake(converter: converter, continuation: continuation)
+        self.intake = intake
+        return intake
     }
 
     private func ensureAssets(for module: any SpeechModule) async throws {
@@ -255,6 +274,7 @@ final class Transcriber {
 
     private func reset() {
         analyzer = nil
+        intake = nil
         inputContinuation = nil
         resultsTask = nil
         volatileText = ""

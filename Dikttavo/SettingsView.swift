@@ -23,15 +23,19 @@ struct SettingsView: View {
             Section {
                 Toggle("Clean up transcripts automatically", isOn: $autoCleanup)
             } footer: {
-                Text("Tidies each transcript with Apple Intelligence on this iPhone — removes filler words, fixes punctuation. Requires a device with Apple Intelligence; otherwise transcripts stay raw.")
+                Text("Tidies each transcript with Apple Intelligence on this device — removes filler words, fixes punctuation. Requires a device with Apple Intelligence; otherwise transcripts stay raw.")
             }
 
             Section {
                 Toggle("Save dictations to history", isOn: $saveHistory)
             } footer: {
-                Text("When off, Dikttavo stores nothing — a transcript exists only on screen until you dictate again. Saved history never leaves this iPhone.")
+                Text("When off, Dikttavo stores nothing — a transcript exists only on screen until you dictate again. Saved history never leaves this device.")
             }
         }
+        .formStyle(.grouped)
+        #if os(macOS)
+        .frame(width: 480)
+        #endif
         .navigationTitle("Settings")
         .task {
             var supported = await SpeechTranscriber.supportedLocales
